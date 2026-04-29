@@ -1964,24 +1964,54 @@ def _memref_transpose_op_lowering_rule(
 
   in_transforms = inference_utils.in_transforms(op)[0]
   unwrapped_in_ref = unwrap_transformed_memref(op.in_, in_transforms)
-  in_transformed_ty = ir.MemRefType(unwrapped_in_ref.type)
-  if in_transformed_ty.rank == op.in_.type.rank:
-    new_permutation = op.permutation
-  elif in_transformed_ty.rank == 4:
-    if op.permutation == _permutation_to_affine_map_attr([0, 1]):
-      new_permutation = _permutation_to_affine_map_attr([0, 1, 2, 3])
-    elif op.permutation == _permutation_to_affine_map_attr([1, 0]):
-      new_permutation = _permutation_to_affine_map_attr([1, 0, 3, 2])
-    else:
-      raise NotImplementedError(f"Unsupported permutation={op.permutation}.")
-  else:
-    raise NotImplementedError(
-        "TransposeOp only supports transposing 4D tiled memrefs and untiled"
-        " memrefs."
-    )
-
+  _, in_transforms = swizzle_and_transforms_from_transforms_attr(in_transforms)
   out_transforms = inference_utils.out_transforms(op)[0]
   _, transforms = swizzle_and_transforms_from_transforms_attr(out_transforms)
+
+  if len(transforms) != len(in_transforms):
+    raise ValueError(
+        f"Size mismatch for in/out transforms. In transforms: {in_transforms},"
+        f" out transforms: {transforms}."
+    )
+  if not transforms:
+    new_permutation = op.permutation
+  else:
+    permutation = [
+        ir.AffineDimExpr(e).position
+        for e in op.permutation.value.results
+    ]
+    # TODO(olechwierowicz): Support multiple transforms.
+    [transform] = transforms
+    [in_transform] = in_transforms
+    if not isinstance(transform, lc.TileTransform) or not isinstance(
+        in_transform, lc.TileTransform
+    ):
+      raise ValueError(
+          f"Invalid in/out transforms. In transform: {in_transform}, out"
+          f" transform: {transform}"
+      )
+    tiling_len = len(in_transform.tiling)
+    tiling_offset = len(permutation) - tiling_len
+    if any(dim < tiling_offset for dim in permutation[-tiling_len :]):
+      raise ValueError(
+          f"Cannot tile a transpose ({permutation}). Tiling dims"
+          f" ({permutation[-tiling_len:]}) cannot contain non-tiled dims."
+          f" All of them must be >= {tiling_offset}."
+      )
+    dims = [-1] * len(permutation)
+    dims = dims[:-tiling_len] + list(in_transform.tiling)
+    permuted_dims = tuple(dims[permutation[i]] for i in range(len(dims)))
+    if permuted_dims[-tiling_len:] != transform.tiling:
+      raise ValueError(
+          f"Invalid in/out transforms. In transform: {in_transform}, out"
+          f" transform: {transform}"
+      )
+    new_permutation = permutation + [
+        x + tiling_len for x in permutation[-tiling_len:]
+    ]
+    new_permutation = _permutation_to_affine_map_attr(new_permutation)
+
+  out_transforms = inference_utils.out_transforms(op)[0]
   new_transpose_op = memref.TransposeOp(
       transform_type(ir.MemRefType(op.result.type), transforms),
       unwrapped_in_ref,
