@@ -141,13 +141,8 @@ def copy(src: ir.Value, dst: ir.Value, swizzle: int | None = None):
           ir.StridedLayoutAttr.get(0, new_strides),
           ref_ty.memory_space,
       )
-      ptr_space = 3 if utils.is_smem_ref(ref_ty) else None
-      return ptr_as_memref(
-          # NOTE: memref_ptr applies the offset in case there was any.
-          memref_ptr(ref),
-          new_ref_ty,
-          ptr_memory_space=ptr_space,
-      )
+      # NOTE: memref_ptr applies the offset in case there was any.
+      return ptr_as_memref(memref_ptr(ref), new_ref_ty)
     src = bitcast(src)
     dst = bitcast(dst)
     bw = 8
