@@ -11,6 +11,14 @@ on:
         options:
         - 'yes'
         - 'no'
+      verbose-downloads:
+        description: 'Should verbose download logging be enabled?'
+        type: choice
+        required: true
+        default: 'no'
+        options:
+        - 'yes'
+        - 'no'
   pull_request:
     branches:
       - main
@@ -92,3 +100,4 @@ jobs:
       build_jax: ${{ 'true' }}
       bazel_command: ${{ (contains(matrix.runner, 'linux-x86') && 'test') || 'build' }}
       clone_main_xla: 1
+      verbose_downloads: ${{ (matrix.python == '3.11' || inputs.verbose-downloads == 'yes') && 'true' || 'false' }}

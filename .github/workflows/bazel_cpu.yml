@@ -59,6 +59,10 @@ on:
         description: "GCS location prefix from where the artifacts should be downloaded"
         default: 'gs://general-ml-ci-transient/jax-github-actions/jax/${{ github.workflow }}/${{ github.run_number }}/${{ github.run_attempt }}'
         type: string
+      verbose_downloads:
+        description: "Should verbose download logging be enabled?"
+        type: string
+        default: 'false'
 
 jobs:
   run-tests:
@@ -78,6 +82,7 @@ jobs:
       JAXCI_BUILD_JAX: ${{ inputs.build_jax }}
       JAXCI_BAZEL_CPU_RBE_MODE: "${{ inputs.bazel_command }}"
       JAXCI_CLONE_MAIN_XLA: ${{ inputs.clone_main_xla }}
+      JAXCI_VERBOSE_DOWNLOADS: ${{ inputs.verbose_downloads == 'true' && '1' || '' }}
 
 # Begin Presubmit Naming Check - name modification requires internal check to be updated
     name: "${{ (contains(inputs.runner, 'linux-x86') && 'linux x86') ||
@@ -104,6 +109,14 @@ jobs:
       - name: "Bazel CPU tests with build_jaxlib=${{ format('{0}', inputs.build_jaxlib) }}"
         timeout-minutes: 60
         run: ./ci/run_bazel_test_cpu_rbe.sh
+      - name: Inspect Downloads
+        if: always()
+        run: |
+          if [ -f resolved.log ]; then
+            cat resolved.log
+          else
+            echo "resolved.log not found"
+          fi
       - name: Upload test artifacts
         if: always()
         continue-on-error: true

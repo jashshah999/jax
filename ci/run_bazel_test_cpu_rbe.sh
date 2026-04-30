@@ -98,6 +98,7 @@ fi
 
 bazel $bazel_output_base $JAXCI_BAZEL_CPU_RBE_MODE \
     $BZLMOD_CONFIG \
+    ${JAXCI_VERBOSE_DOWNLOADS:+--config=verbose_downloads} \
     --build_runfile_links=false \
     --config=$rbe_config \
     --repo_env=HERMETIC_PYTHON_VERSION="$JAXCI_HERMETIC_PYTHON_VERSION" \
